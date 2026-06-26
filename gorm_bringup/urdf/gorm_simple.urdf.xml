@@ -1,0 +1,48 @@
+<robot name="gorm">
+
+    <link name="base_link">
+    </link>
+
+    <link name="chassis_link">
+        <visual>
+            <origin rpy="0.0 0.0 1.571" xyz="-0.09256 0.0 0.2110" />
+            <geometry>
+                <mesh filename="package://gorm_bringup/meshes/gorm_primitive.stl" />
+            </geometry>
+            <material name="">
+                <color rgba="0.1 0.1 0.8 1" />
+            </material>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <geometry>
+                <mesh filename="package://gorm_bringup/meshes/gorm_primitive.stl" />
+            </geometry>
+        </collision>
+    </link>
+
+    <joint name="base_chassis" type="fixed">
+        <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.302" />
+        <parent link="base_link" />
+        <child link="chassis_link" />
+    </joint>
+
+    <link name="zed_camera_link">
+    </link>
+
+    <joint name="chassis_cam_front" type="fixed">
+        <origin rpy="0.0 0.2618 0.1222" xyz="0.280 -0.264 0.472" />
+        <parent link="chassis_link" />
+        <child link="zed_camera_link" />
+    </joint>
+
+    <link name="zed_camera_link_b">
+    </link>
+
+    <joint name="chassis_cam_back" type="fixed">
+        <origin rpy="0.0 0.2618 3.2637" xyz="-0.282 0.264 0.340" />
+        <parent link="chassis_link" />
+        <child link="zed_camera_link_b" />
+    </joint>
+
+</robot>

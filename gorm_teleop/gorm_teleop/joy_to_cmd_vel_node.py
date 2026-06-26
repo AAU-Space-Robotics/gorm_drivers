@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+
+import rclpy
+from rclpy.node import Node
+from std_srvs.srv import Trigger
+from sensor_msgs.msg import Joy
+from geometry_msgs.msg import Twist
+import math
+import numpy as np
+
+class JoyToVelNode(Node):
+    def __init__(self):
+        super().__init__('joy_to_vel_converter')
+
+        # Declare parameters for input and output topics
+        self.declare_parameter('joy_topic', '/local/joy')
+        self.declare_parameter('twist_topic', '/joystick/cmd_vel')
+
+        joy_topic = self.get_parameter('joy_topic').get_parameter_value().string_value
+        twist_topic = self.get_parameter('twist_topic').get_parameter_value().string_value
+
+        # Subscriber
+        self.subscription = self.create_subscription(
+            Joy,
+            joy_topic,
+            self.listener_callback,
+            10)
+        
+        # Publisher
+        self.publisher_ = self.create_publisher(
+            Twist,
+            twist_topic,
+            10)
+        
+
+        # Service clients
+        self.start_motors_client = self.create_client(Trigger, 'start_motors')
+        self.shutdown_motors_client = self.create_client(Trigger, 'shutdown_motors')
+
+        
+        self.linear_vel = 0.0
+        self.angular_vel = 0.0
+        self.speed_multi = 1
+        self.active_state = True
+
+        self.pt_adjustment = 0.5 # Point turn adjustment factor
+
+
+        # Wait for services to be available
+        while not self.start_motors_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for start_motors service...')
+        while not self.shutdown_motors_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for shutdown_motors service...')
+
+
+        self.get_logger().info(f"Joy to vel converter node started. Subscribing to '{joy_topic}' and publishing to '{twist_topic}'.")
+
+    def listener_callback(self, msg):
+
+        ### Convert the joystick input to linear and angular velocities ###
+        
+        linear_vel = msg.axes[1] # Left stick up/down
+        angular_vel = msg.axes[0] # Left stick left/right
+        right_stick_x = msg.axes[3] # right stick left/right
+
+
+        self.speed_multi = self.check_ABXY_pressed(msg)
+        self.active_state = self.check_start_back(msg)
+
+        # Check D-pad up/down
+        dpad_vertical = msg.axes[7]  
+        if dpad_vertical == 1.0:  # D-pad UP
+            self.call_start_motors()
+        elif dpad_vertical == -1.0:  # D-pad DOWN
+            self.call_shutdown_motors()
+
+
+        # Strech the circle to a square
+        linear_vel, angular_vel = self.circle_to_square(linear_vel, angular_vel)
+
+        if self.active_state:
+            # Turn on point
+            if abs(right_stick_x)>0.0001:
+                # Create and publish the message
+                twist = Twist()
+                twist.angular.z = right_stick_x*self.speed_multi*self.pt_adjustment
+                twist.angular.x = right_stick_x*self.speed_multi*self.pt_adjustment
+                
+
+                self.publisher_.publish(twist)
+            else:
+                # Create and publish the message
+                twist = Twist()
+                twist.linear.x = linear_vel*self.speed_multi
+                twist.angular.z = angular_vel*self.speed_multi
+
+                self.publisher_.publish(twist)
+
+
+
+        # If Y button is pressed, stop the robot
+        # TODO - Implement a service that stop the robot over can bus
+        
+        # if msg.buttons[3] == 1:
+        #     twist.linear.x = 0
+        #     twist.angular.z = 0
+        #     self.publisher_.publish(twist)
+
+
+    def check_ABXY_pressed(self, msg):
+        if msg.buttons[0]==1:
+            return 1.0
+        if msg.buttons[1]==1:
+            return 0.3
+        if msg.buttons[2]==1:
+            return 0.8
+        if msg.buttons[3]==1:
+            return 0.5
+        return self.speed_multi
+    
+    def check_start_back(self, msg):
+        if msg.buttons[6]==1:
+            return False
+        elif msg.buttons[7]==1:
+            return True
+        return self.active_state
+
+
+    def call_start_motors(self):
+        req = Trigger.Request()
+        self.start_motors_client.call_async(req)
+
+    def call_shutdown_motors(self):
+        req = Trigger.Request()
+        self.shutdown_motors_client.call_async(req)
+
+
+    def circle_to_square(self, x, y):
+        # Ensure the point (x, y) lies within the unit circle
+        if x**2 + y**2 > 1:
+            x = x / math.sqrt(x**2 + y**2)
+            y = y / math.sqrt(x**2 + y**2)
+
+        new_x = x
+        new_y = y
+
+        if x**2 > y**2:
+            # The point lies in the right half of the circle
+            new_x = np.sign(x)* math.sqrt(x**2 + y**2)
+        elif y != 0:
+            new_x = np.sign(y)* (x / y) * math.sqrt(x**2 + y**2)
+
+        if y**2 > x**2:
+            # The point lies in the upper half of the circle
+            new_y = np.sign(y)* math.sqrt(x**2 + y**2)
+        elif x != 0:
+            new_y = np.sign(x)* (y / x) * math.sqrt(x**2 + y**2)
+
+        return new_x*4, new_y*4
+
+def main(args=None):
+    # Initialize the rclpy library
+    rclpy.init(args=args)
+    # Create the node
+    joy_to_vel_converter = JoyToVelNode()
+    # Spin the node so the callback function is called.
+    rclpy.spin(joy_to_vel_converter)
+    # Destroy the node and shutdown the ROS client
+    joy_to_vel_converter.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
