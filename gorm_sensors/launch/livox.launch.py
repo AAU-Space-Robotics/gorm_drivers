@@ -15,10 +15,6 @@ frame_id      = 'livox_frame'
 lvx_file_path = '/home/livox/livox_test.lvx'
 cmdline_bd_code = 'livox0000000001'
 
-# cur_path = os.path.split(os.path.realpath(__file__))[0] + '/'
-# cur_config_path = cur_path + '../config'
-# user_config_path = os.path.join(cur_config_path, 'MID360_config.json')
-
 package_share = get_package_share_directory('gorm_sensors')
 user_config_path = os.path.join(
     package_share,
@@ -51,12 +47,4 @@ def generate_launch_description():
 
     return LaunchDescription([
         livox_driver,
-        # launch.actions.RegisterEventHandler(
-        #     event_handler=launch.event_handlers.OnProcessExit(
-        #         target_action=livox_rviz,
-        #         on_exit=[
-        #             launch.actions.EmitEvent(event=launch.events.Shutdown()),
-        #         ]
-        #     )
-        # )
     ])
