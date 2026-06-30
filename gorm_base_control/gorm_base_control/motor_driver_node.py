@@ -75,7 +75,7 @@ class MotorDriverNode(Node):
             10
         )
         
-        # Publish every 100 ms
+        # Publish every 500 ms
         self.motor_state_timer = self.create_timer(
             0.5,
             self.publish_motor_states
